@@ -1,7 +1,9 @@
 # Reserach Notes
 
-vqa_matlab.m            : matrix implementation of gates to verify equations used in the paper
-classical_poisson.ipynb : notebook with FDM solution of implemented VQA, validates the physics solved by quantum algorithm
+| Added file | Description |
+| :----: | :----: |
+| vqa_matlab.m            | Matrix implementation of gates to verify equations used in the paper |
+| classical_poisson.ipynb | Notebook with FDM solution of implemented VQA, validates the physics solved by quantum algorithm |
 
 # Original README below
 ## Variational quantum algorithm based on the minimum potential energy for solving the Poisson equation
