@@ -1,4 +1,10 @@
-# Variational quantum algorithm based on the minimum potential energy for solving the Poisson equation
+# Reserach Notes
+
+vqa_matlab.m            : matrix implementation of gates to verify equations used in the paper
+classical_poisson.ipynb : notebook with FDM solution of implemented VQA, validates the physics solved by quantum algorithm
+
+# Original README below
+## Variational quantum algorithm based on the minimum potential energy for solving the Poisson equation
 
 [![python](https://img.shields.io/badge/python-v3.7.4-blue)](https://www.python.org/downloads/release/python-374/)
 [![license](https://img.shields.io/badge/license-Apache%202.0-blue)](https://opensource.org/licenses/Apache-2.0)

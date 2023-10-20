@@ -10,17 +10,8 @@ F = kron(XH, kron(H, kron(H, H)));
 
 u0 = [1 0]';
 initial_state = kron(u0, kron(u0, kron(u0,u0)));
+% find initial state for RHS of Poisson Equation
 f = F * initial_state;
-
-% syms a b;
-% assume(a,"real")
-% assume(b,"real")
-% assume(a^2 + b ^2 == 1);
-% 
-% uPhi = [a b]';
-% uPhiG = kron(uPhi, kron(uPhi, kron(uPhi,uPhi)));
-% 
-% f = F * uPhiG;
 
 %% 2D generalization
 N = 4;
@@ -49,28 +40,11 @@ params_optimal = [[6.38264276  8.71081761  7.20155899  6.68731467 0 0]
 
 qc = ansatz(params_init, N);
 
-    % 
-    % def ansatz(self, qc, params, *, control=None):
-    % 
-    %     params = [params[:self.num_qubits]] \
-    %             + [params[self.num_qubits+i_layer*self.num_params_per_layer:self.num_qubits+(i_layer+1)*self.num_params_per_layer] \
-    %                 for i_layer in range(self.num_layers)]
-    % 
-    %     if control is None:
-    %         for i in range (self.num_qubits):
-    %             qc.ry(params[0][i], self.qreg[i])
-    %         for i_layer in range(self.num_layers):
-    %             for i in range(self.num_qubits//2):
-    %                 qc.cz(self.qreg[2*i], self.qreg[2*i+1])
-    %                 qc.ry(params[i_layer+1][2*i], self.qreg[2*i])
-    %                 qc.ry(params[i_layer+1][2*i+1], self.qreg[2*i+1])
-    %             for i in range((self.num_qubits-1)//2):
-    %                 qc.cz(self.qreg[2*i+1], self.qreg[2*i+2])
-    %                 qc.ry(params[i_layer+1][2*(self.num_qubits//2)+2*i], self.qreg[2*i+1])
-    %                 qc.ry(params[i_layer+1][2*(self.num_qubits//2)+2*i+1], self.qreg[2*i+2])
-
 %% Helper Functions
 function [qc] = ansatz(params, N)
+% Replicate ansatz used in VQAPoisson implementation
+% (function is not working -- need to debug)
+
     num_layers = 5;
     % init to empty gate
     qc = [1];
@@ -114,11 +88,15 @@ function [qc] = ansatz(params, N)
 end
 
 function [ry] = Ry(theta)
+% Create Ry(\theta) matrix
+
     ry = [cos(theta/2) -sin(theta/2);
           sin(theta/2) cos(theta/2)];
 end
 
 function [cz] = Cz()
+% Create Cz gate matrix
+
     cz = eye(4);
     cz(4,4) = -1;
 end
