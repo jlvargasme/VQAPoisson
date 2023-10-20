@@ -3,7 +3,8 @@ import warnings
 import numpy as np
 from scipy.optimize import minimize
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, execute, Aer
-from qiskit.aqua import QuantumInstance
+from qiskit.utils import QuantumInstance
+import qiskit.quantum_info as qi
 
 
 class VQAforPoisson():
@@ -103,7 +104,9 @@ class VQAforPoisson():
             c = self.c
         else:
             raise ValueError('Invalid boundary condition setting. Boundary condition is either "Periodic", "Neumann", or "Dirichlet".')
-
+        
+        # this computes the expectation of A, see Ipad notes for derivation details
+        # in summary, this used the formulas for expectation of identity and shifted identities, along with linearity of operators
         A = 2 - A0_X - A1_X - B + c
         X_In = self._calc_X0(params)
         r = X_In / A
@@ -227,6 +230,7 @@ class VQAforPoisson():
 
         qc.h(self.qreg[0])
         if self.qinstance.is_statevector:
+        # simulator
             sv = self.qinstance.execute(qc).get_statevector(qc)
             val = 0
             for l in range(len(sv)):
@@ -236,6 +240,7 @@ class VQAforPoisson():
                 elif bits[-1] == '1':
                     val -= np.real(sv[l]*sv[l].conjugate())
         else:
+        # hardware
             creg = ClassicalRegister(1, 'c')
             qc.add_register(creg)
             qc.measure(self.qreg[0], creg)
@@ -290,12 +295,18 @@ class VQAforPoisson():
         return val
 
     def _calc_X0(self, params):
+    # This function computes the expectation value for
+    # 
+    # X_In = < f, Psi(\theta) | X (x) I^(x)n | f, Psi(\theta) >
+    #
 
         qc = QuantumCircuit(self.qreg, self.qreg_ancilla)
+        # create Hadamard test circuit to compute expectation value
         qc = self.state_preparation(qc, zero_state='f_vec', one_state='ansatz', params=params)
 
         qc.h(self.qreg_ancilla[0])
         if self.qinstance.is_statevector:
+        # compute expectation value in simulator
             sv = self.qinstance.execute(qc).get_statevector(qc)
             val = 0
             for l in range(len(sv)):
@@ -305,6 +316,7 @@ class VQAforPoisson():
                 elif bits[0] == '1':
                     val -= np.real(sv[l]*sv[l].conjugate())
         else:
+        # compute expectation value in hardware
             creg = ClassicalRegister(1, 'c')
             qc.add_register(creg)
             qc.measure(self.qreg_ancilla, creg[0])
@@ -450,7 +462,7 @@ class VQAforPoisson():
         return execute(self.qc_f_vec, Aer.get_backend('statevector_simulator')).result().get_statevector()
 
     def get_cl_sol(self):
-        return np.linalg.inv(self.get_A_matrix()) @ self.get_f_vec()
+        return np.linalg.inv(self.get_A_matrix()) @ np.array(self.get_f_vec())
 
     def minimize(self, x0, *, method=None, bounds=None, constraints=(), tol=None, options=None, use_grad=True, save_logs=False):
 
@@ -503,10 +515,19 @@ class VQAforPoisson():
 
         return execute(qc, Aer.get_backend('statevector_simulator')).result().get_statevector()
 
+    def print_matrix(self, x):
+        qc = QuantumCircuit(self.qreg)
+        qc = self.ansatz(qc, x)
+
+        # res = execute(qc, Aer.get_backend('statevector_simulator')).result()
+        # print(res.get_unitary(qc, decimals=3))
+        print(qi.Operator(qc).data)
+        return
+
     def get_errors(self, x):
 
         statevec = self.get_statevec(x)
-        solvec = self.evaluate(x)[1]*statevec
+        solvec = np.array(self.evaluate(x)[1]*statevec)
 
         cl_sol = self.get_cl_sol()
         cl_sol_normalized = cl_sol / np.linalg.norm(cl_sol)
