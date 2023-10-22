@@ -1,7 +1,11 @@
 %% VQA Poisson validation
 
+ket0 = [1 0]';
+ket1 = [0 1]';
+
 H = [1 1 ; 1 -1]'/sqrt(2);
 X = [0 1; 1 0]';
+I0 = ket0 * conj(ket0');
 
 
 XH = H * X ;
@@ -13,14 +17,31 @@ initial_state = kron(u0, kron(u0, kron(u0,u0)));
 % find initial state for RHS of Poisson Equation
 f = F * initial_state;
 
-%% 2D generalization
-N = 4;
+%% Formula Verification
+N = 16;
 A = diag(2*ones(1,N)) + diag(-1*ones(1,N-1),1) + diag(-1*ones(1,N-1),-1);
 A(1,N) = -1;
 A(N,1) = -1;
 
+% build shift operator
+n_qubits = 4;
+P4 = shift(n_qubits);
+
+% compose Neumann and Dirichilet A matrix from A periodic and P4
+Aeven = kron(eye(N/2), (eye(2) - X));
+Aodd = inv(P4) * (kron(eye(N/2), (eye(2)-X))) * P4;
+A_periodic = Aeven + Aodd;
+A_dirichilet = A_periodic + inv(P4) * (kron(I0n(n_qubits-1), X)) * P4;
+A_neumann = A_periodic - inv(P4) * (kron(I0n(n_qubits-1),eye(2) - X)) * P4;
+
+%% 2D Generalization
 A2 = kron(A, eye(4)) + kron(eye(4),A);
 
+%% Shift summation definition
+P4_math = shift_m(n_qubits);
+
+
+%% Ansatz test
 % optimal circuit values from qiskit implementation
 % 0's are just to make the entry the same dimension, it is ignored
 params_init = [ [6.896593888515826 8.987334637284528 7.574547976478632 6.847204019070697 0 0] 
@@ -38,7 +59,7 @@ params_optimal = [[6.38264276  8.71081761  7.20155899  6.68731467 0 0]
                   [7.16844938  4.87774563 3.5625847  10.69383531  5.77682222  7.404504]
                   ];
 
-qc = ansatz(params_init, N);
+qc = ansatz(params_init, n_qubits);
 
 %% Helper Functions
 function [qc] = ansatz(params, N)
@@ -99,4 +120,72 @@ function [cz] = Cz()
 
     cz = eye(4);
     cz(4,4) = -1;
+end
+
+function [gate] =  shift(N)
+% Build shift operator from paper
+    n = 2^N;
+    gate = eye(n);
+    I = eye(2);
+
+    for i=N:-1:1
+        id_n = N - i;
+        i_gate = [1];
+        for j=1:id_n
+            i_gate = kron(I, i_gate);
+        end
+
+        gate = kron(i_gate,cnx(i)) * gate;
+    end
+
+end
+
+function [cn] = cnx(N)
+% Controlled Not gate with N - 1 control qubits and 1 target qubit
+% cnx(1) = x gate
+% cnx(2) = CN gate
+% cnx(3) = Toffoli gate
+
+    n = 2^N;
+    
+    cn = eye(n);
+    cn(n/2,n/2) = 0;
+    cn(n,n) = 0;
+
+    cn(n,n/2) = 1;
+    cn(n/2,n) = 1;
+end
+
+function [I0] = I0n(N)
+    n = 2^N;
+    I0 = zeros(n,n);
+    I0(1,1) = 1;
+end
+
+function [P] = shift_m(N)
+    n = 2^N;
+    P = zeros(n,n);
+    for i = 0:(n-1)
+        P = P + ket( mod(i+1,n), N) * conj(ket(i, N)');
+    end
+end
+
+function [ketN] = ket(n, N)
+    binVec = decimalToBinaryVector(n, N);
+    Aket = ketify(binVec);
+    ketN = [1];
+    for i =1:size(Aket,2)
+        ketN = kron(ketN, Aket(:,i));
+    end
+end
+
+function [Aket] = ketify(A)
+% matrix of bits to be convert to kets
+   Aket = zeros(2,size(A,2));
+   if any(A == 0)
+        Aket(:, A == 0) = repmat([1 0]',1, sum(A == 0));
+   end
+   if any(A == 1)
+        Aket(:, A == 1) = repmat([0 1]',1, sum(A == 1));
+   end
 end
