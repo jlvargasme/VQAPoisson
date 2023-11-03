@@ -4,6 +4,7 @@ ket0 = [1 0]';
 ket1 = [0 1]';
 
 H = [1 1 ; 1 -1]'/sqrt(2);
+Z = [1 0; 0 -1];
 X = [0 1; 1 0]';
 I0 = ket0 * conj(ket0');
 
@@ -18,13 +19,13 @@ initial_state = kron(u0, kron(u0, kron(u0,u0)));
 f = F * initial_state;
 
 %% Formula Verification
-N = 16;
+N = 4;
 A = diag(2*ones(1,N)) + diag(-1*ones(1,N-1),1) + diag(-1*ones(1,N-1),-1);
 A(1,N) = -1;
 A(N,1) = -1;
 
 % build shift operator
-n_qubits = 4;
+n_qubits = log2(N);
 P4 = shift(n_qubits);
 
 % compose Neumann and Dirichilet A matrix from A periodic and P4

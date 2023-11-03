@@ -23,7 +23,7 @@ class VQAforPoisson():
     >>> res = vqa.minimize(x0)
     """
 
-    def __init__(self, num_qubits, num_layers, bc, *, backend=None, qinstance=None, oracle_f=None, c=1e-3, use_mct_ancilla=False):
+    def __init__(self, num_qubits, num_layers, bc, *, backend=None, qinstance=None, oracle_f=None, c=1e-3, use_mct_ancilla=False, two_dim=False):
 
         """
         Parameters
@@ -78,6 +78,8 @@ class VQAforPoisson():
         else:
             self.qinstance = qinstance
 
+        self.two_dim = two_dim 
+
     def objective(self, params):
 
         obj = self.evaluate(params)[0]
@@ -108,6 +110,10 @@ class VQAforPoisson():
         # this computes the expectation of A, see Ipad notes for derivation details
         # in summary, this used the formulas for expectation of identity and shifted identities, along with linearity of operators
         A = 2 - A0_X - A1_X - B + c
+        # 2D test
+        if self.two_dim:
+            A = 2 * A
+
         X_In = self._calc_X0(params)
         r = X_In / A
         obj = -0.5*X_In**2 / A
