@@ -19,7 +19,7 @@ initial_state = kron(u0, kron(u0, kron(u0,u0)));
 f = F * initial_state;
 
 %% Formula Verification
-N = 4;
+N = 16;
 A = diag(2*ones(1,N)) + diag(-1*ones(1,N-1),1) + diag(-1*ones(1,N-1),-1);
 A(1,N) = -1;
 A(N,1) = -1;
@@ -36,11 +36,22 @@ A_dirichilet = A_periodic + inv(P4) * (kron(I0n(n_qubits-1), X)) * P4;
 A_neumann = A_periodic - inv(P4) * (kron(I0n(n_qubits-1),eye(2) - X)) * P4;
 
 %% 2D Generalization
-A2 = kron(A, eye(4)) + kron(eye(4),A);
+A2 = kron(A, eye(N)) + kron(eye(N),A);
 
 %% Shift summation definition
 P4_math = shift_m(n_qubits);
 
+%% Expectation value experiment
+
+Psi = zeros(N,1);
+Psi(1) = 1;
+Psi = Psi/norm(Psi);
+
+% A = eye(N);
+
+exp_A = compute_expectation(Psi, A);
+Psi_new = kron(Psi, ones(N,1)) / norm(kron(Psi, ones(N,1)));
+exp_B = compute_expectation(Psi_new, A2) ;
 
 %% Ansatz test
 % optimal circuit values from qiskit implementation
@@ -63,6 +74,10 @@ params_optimal = [[6.38264276  8.71081761  7.20155899  6.68731467 0 0]
 qc = ansatz(params_init, n_qubits);
 
 %% Helper Functions
+function [e] = compute_expectation(Psi, A)
+    e = conj(Psi') * A * Psi;
+end
+
 function [qc] = ansatz(params, N)
 % Replicate ansatz used in VQAPoisson implementation
 % (function is not working -- need to debug)

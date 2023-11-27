@@ -2,6 +2,7 @@ import warnings
 
 import numpy as np
 from scipy.optimize import minimize
+from qiskit.algorithms.optimizers import SPSA
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, execute, Aer
 from qiskit.utils import QuantumInstance
 import qiskit.quantum_info as qi
@@ -111,8 +112,8 @@ class VQAforPoisson():
         # in summary, this used the formulas for expectation of identity and shifted identities, along with linearity of operators
         A = 2 - A0_X - A1_X - B + c
         # 2D test
-        if self.two_dim:
-            A = 2 * A
+        # if self.two_dim:
+        #     A = 2 * A
 
         X_In = self._calc_X0(params)
         r = X_In / A
@@ -490,7 +491,15 @@ class VQAforPoisson():
         else:
             callback = None
 
-        res = minimize(self.objective, x0, method=method, jac=jac, bounds=bounds, constraints=constraints, tol=tol, callback=callback, options=options)
+        if method == 'spsa':
+            print("spsa")
+            # create Qiskit SPSA solver
+            spsa = SPSA(maxiter=2000, callback=self._callback_spsa)
+            out = spsa.minimize(self.objective, x0, jac=jac, bounds=bounds)
+            res = {'x': out.x}
+        else:    
+            res = minimize(self.objective, x0, method=method, jac=jac, bounds=bounds, constraints=constraints, tol=tol, callback=callback, options=options)
+
         self.res = res
 
         return res
@@ -513,6 +522,25 @@ class VQAforPoisson():
             print('It.: %05d, Obj.: %.6e, Tolfun.: %.6e'%(len(self.objective_logs), self.current_objective, self.tolfun(xk)))
         else:
             print('It.: %05d, Obj.: %.6e'%(len(self.objective_logs), self.current_objective))
+    
+    def _callback_spsa(self, iter, xk, feval, step, step_accepted):
+
+        self.objective_logs.append(self.current_objective)
+        self.objective_count_logs.append(self.objective_counts)
+        self.circuit_count_logs.append(self.circuit_counts)
+        self.sol_logs.append(xk)
+        err = self.get_errors(xk)
+
+        for key in err.keys():
+            if key not in self.error_logs.keys():
+                self.error_logs[key] = [err[key]]
+            else:
+                self.error_logs[key].append(err[key])
+
+        if 'tolfun' in dir(self):
+            print('It.: %05d, Obj.: %.6e, Tolfun.: %.6e, Iter.: %05d'%(len(self.objective_logs), self.current_objective, self.tolfun(xk), iter))
+        else:
+            print('It.: %05d, Obj.: %.6e, Iter.: %05d'%(len(self.objective_logs), self.current_objective, iter))
 
     def get_statevec(self, x):
 
