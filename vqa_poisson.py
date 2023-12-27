@@ -24,7 +24,7 @@ class VQAforPoisson():
     >>> res = vqa.minimize(x0)
     """
 
-    def __init__(self, num_qubits, num_layers, bc, *, backend=None, qinstance=None, oracle_f=None, c=1e-3, use_mct_ancilla=False, two_dim=False):
+    def __init__(self, num_qubits, num_layers, bc, *, backend=None, qinstance=None, oracle_f=None, c=1e-3, use_mct_ancilla=False, optimize_shift=False):
 
         """
         Parameters
@@ -45,6 +45,8 @@ class VQAforPoisson():
             A parameter to avoid singularity of the stiffness matrix when bc = 'Periodic' or 'Neumann' :float.
         use_mct_ancilla
             A flag to switch whether an ancilla qubit is used to implement a multi-controlled Toffoli gate :bool:
+        optimize_shift
+            A flag to switch between O(n^2) and O(n) implementation of the shift operator :bool:
         """
         
         self.num_qubits = num_qubits
@@ -52,6 +54,7 @@ class VQAforPoisson():
         self.bc = bc
         self.c = c
         self.use_mct_ancilla = use_mct_ancilla
+        self.optimize_shift = optimize_shift
 
         if self.num_qubits <= 3 and self.use_mct_ancilla:
             warnings.warn("mct with ancilla qubits is valid for num_qubits > 3, so 'use_mct_ancilla' has changed to 'False'.")
@@ -68,6 +71,7 @@ class VQAforPoisson():
 
         self.qreg = QuantumRegister(num_qubits, 'q')
         self.qreg_ancilla = QuantumRegister(1, 'q_ancilla')
+        self.inc_ancilla = QuantumRegister(num_qubits - 2, 'inc_ancilla') # ancilla for linear shift operator
 
         if oracle_f is not None:
             self.qc_f_vec = oracle_f
@@ -79,13 +83,11 @@ class VQAforPoisson():
         else:
             self.qinstance = qinstance
 
-        self.two_dim = two_dim 
-
     def objective(self, params):
 
         obj = self.evaluate(params)[0]
         self.current_objective = obj
-
+        print(obj)
         return obj
 
     def evaluate(self, params):
@@ -111,9 +113,6 @@ class VQAforPoisson():
         # this computes the expectation of A, see Ipad notes for derivation details
         # in summary, this used the formulas for expectation of identity and shifted identities, along with linearity of operators
         A = 2 - A0_X - A1_X - B + c
-        # 2D test
-        # if self.two_dim:
-        #     A = 2 * A
 
         X_In = self._calc_X0(params)
         r = X_In / A
@@ -182,18 +181,66 @@ class VQAforPoisson():
 
         return qc
 
-    def shift_add(self, qc):
+    def create_incrementer(self, N):
+    # experiment from O(n) incrementer circuit
+    # uses n - 2 ancilla qubits
+        
+        if N == 1:
+            qc = QuantumCircuit(1)
+            qc.x(0)
+            return qc
+        elif N == 2:
+            qc = QuantumCircuit(2)
+            qc.cx(0,1)
+            qc.x(0)
+            return qc
+        
+        nq_total = N + (N - 2)
 
-        if not self.use_mct_ancilla:
-            for i in reversed(range(1, self.num_qubits)):
-                qc.mct(self.qreg[:i], self.qreg[i])
-            qc.x(self.qreg[0])
+        qc = QuantumCircuit(nq_total)
+
+        # add Toffoli gates
+        for i in range(0,N-2):
+            qc.ccx(i*2,i*2 + 1, i*2 + 2)
+        qc.cx(nq_total - 2, nq_total - 1)
+        # qc.barrier()
+
+        # add CX gates
+        for i in range(N-3,-1,-1):
+            qc.ccx(i*2,i*2 + 1, i*2 + 2)
+            qc.cx(i*2, i*2 + 1)
+
+        qc.x(0)
+
+        return qc
+    
+    def qubit_list(self):
+
+        q_list = [self.qreg[0]]
+        for i in range(len(self.qreg)-2):
+            q_list.append(self.qreg[i+1])
+            q_list.append(self.inc_ancilla[i])
+        q_list.append(self.qreg[-1])
+
+        return q_list
+
+    def shift_add(self, qc):
+        
+        if self.optimize_shift:
+            # implement linear shift operator
+            qc.compose(self.create_incrementer(self.num_qubits), qubits=self.qubit_list(), inplace=True)
+
         else:
-            qreg_shift_ancilla = QuantumRegister(self.num_qubits-3, 'q_shift_ancilla')
-            qc.add_register(qreg_shift_ancilla)
-            for i in reversed(range(1, self.num_qubits)):
-                qc.mct(self.qreg[:i], self.qreg[i], qreg_shift_ancilla, mode='v-chain')
-            qc.x(self.qreg[0])
+            if not self.use_mct_ancilla:
+                for i in reversed(range(1, self.num_qubits)):
+                    qc.mct(self.qreg[:i], self.qreg[i])
+                qc.x(self.qreg[0])
+            else:
+                qreg_shift_ancilla = QuantumRegister(self.num_qubits-3, 'q_shift_ancilla')
+                qc.add_register(qreg_shift_ancilla)
+                for i in reversed(range(1, self.num_qubits)):
+                    qc.mct(self.qreg[:i], self.qreg[i], qreg_shift_ancilla, mode='v-chain')
+                qc.x(self.qreg[0])
 
         return qc
 
@@ -229,19 +276,33 @@ class VQAforPoisson():
 
     def _calc_Xn(self, params, *, is_shift=False):
 
-        qc = QuantumCircuit(self.qreg)
+        if self.optimize_shift:
+            qc = QuantumCircuit(self.qreg, self.inc_ancilla)
+        else:
+            qc = QuantumCircuit(self.qreg)
+
         qc = self.ansatz(qc, params)
+        # print(qc)
 
         if is_shift:
             qc = self.shift_add(qc)
+            # print(qc)
 
         qc.h(self.qreg[0])
         if self.qinstance.is_statevector:
         # simulator
             sv = self.qinstance.execute(qc).get_statevector(qc)
             val = 0
-            for l in range(len(sv)):
-                bits = bin(l)[2:].zfill(qc.num_qubits)
+            len_sv = len(sv)
+            qc_num = (int) (qc.num_qubits)
+
+            if self.optimize_shift: # last n - 2 qubits do not contribute to overall result of simulation
+                qc_num = (int) (qc_num/2 + 1) # get number of qubits from n + (n - 2) = qc_num
+                inc_ancilla = (int) (qc_num - 2)
+                len_sv = (int) (len_sv >> inc_ancilla)
+
+            for l in range(len_sv):
+                bits = bin(l)[2:].zfill(qc_num)
                 if bits[-1] == '0':
                     val += np.real(sv[l]*sv[l].conjugate())
                 elif bits[-1] == '1':
@@ -264,7 +325,11 @@ class VQAforPoisson():
 
     def _calc_for_bc(self, params, *, is_identity=False):
 
-        qc = QuantumCircuit(self.qreg)
+        if self.optimize_shift:
+            qc = QuantumCircuit(self.qreg, self.inc_ancilla)
+        else:
+            qc = QuantumCircuit(self.qreg)
+
         qc = self.ansatz(qc, params)
         qc = self.shift_add(qc)
 
@@ -274,8 +339,17 @@ class VQAforPoisson():
         if self.qinstance.is_statevector:
             sv = self.qinstance.execute(qc).get_statevector(qc)
             val = 0
-            for l in range(len(sv)):
-                bits = bin(l)[2:].zfill(qc.num_qubits)
+
+            len_sv = len(sv)
+            qc_num = (int) (qc.num_qubits)
+
+            if self.optimize_shift: # last n - 2 qubits do not contribute to overall result of simulation
+                qc_num = (int) (qc_num/2 + 1) # get number of qubits from n + (n - 2) = qc_num
+                inc_ancilla = (int) (qc_num - 2)
+                len_sv = (int) (len_sv >> inc_ancilla)
+
+            for l in range(len_sv):
+                bits = bin(l)[2:].zfill(qc_num)
                 if not np.array([int(bits[i]) for i in range(len(bits)-1)]).any():
                     if is_identity:
                         val += np.real(sv[l]*sv[l].conjugate())
@@ -340,7 +414,11 @@ class VQAforPoisson():
 
     def _calc_grad_A(self, params, dparams, *, is_shift=False):
 
-        qc = QuantumCircuit(self.qreg, self.qreg_ancilla)
+        if self.optimize_shift:
+            qc = QuantumCircuit(self.qreg, self.qreg_ancilla, self.inc_ancilla)
+        else:
+            qc = QuantumCircuit(self.qreg, self.qreg_ancilla)
+
         qc = self.state_preparation(qc, zero_state='grad_ansatz', one_state='ansatz', params=params, dparams=dparams)
 
         if is_shift:
@@ -351,8 +429,17 @@ class VQAforPoisson():
         if self.qinstance.is_statevector:
             sv = self.qinstance.execute(qc).get_statevector(qc)
             val = 0
-            for l in range(len(sv)):
-                bits = bin(l)[2:].zfill(qc.num_qubits)
+
+            len_sv = len(sv)
+            qc_num = (int) (qc.num_qubits)
+
+            if self.optimize_shift: # last n - 2 qubits do not contribute to overall result of simulation
+                qc_num = (int) (qc_num/2 + 1) # get number of qubits from n + (n - 2) = qc_num
+                inc_ancilla = (int) (qc_num - 2)
+                len_sv = (int) (len_sv >> inc_ancilla)
+
+            for l in range(len_sv):
+                bits = bin(l)[2:].zfill(qc_num)
                 if bits[self.num_mct_ancilla] == '0' and bits[-1] == '0':
                     val += np.real(sv[l]*sv[l].conjugate())
                 elif bits[self.num_mct_ancilla] == '1' and bits[-1] == '0':
@@ -380,7 +467,11 @@ class VQAforPoisson():
 
     def _calc_grad_for_bc(self, params, dparams, *, is_identity=False):
 
-        qc = QuantumCircuit(self.qreg, self.qreg_ancilla)
+        if self.optimize_shift:
+            qc = QuantumCircuit(self.qreg, self.qreg_ancilla, self.inc_ancilla)
+        else:
+            qc = QuantumCircuit(self.qreg, self.qreg_ancilla)
+
         qc = self.state_preparation(qc, zero_state='grad_ansatz', one_state='ansatz', params=params, dparams=dparams)
         qc = self.shift_add(qc)
 
@@ -391,8 +482,17 @@ class VQAforPoisson():
         if self.qinstance.is_statevector:
             sv = self.qinstance.execute(qc).get_statevector(qc)
             val = 0
-            for l in range(len(sv)):
-                bits = bin(l)[2:].zfill(qc.num_qubits)
+
+            len_sv = len(sv)
+            qc_num = (int) (qc.num_qubits)
+
+            if self.optimize_shift: # last n - 2 qubits do not contribute to overall result of simulation
+                qc_num = (int) (qc_num/2 + 1) # get number of qubits from n + (n - 2) = qc_num
+                inc_ancilla = (int) (qc_num - 2)
+                len_sv = (int) (len_sv >> inc_ancilla)
+
+            for l in range(len_sv):
+                bits = bin(l)[2:].zfill(qc_num)
                 if is_identity:
                     if bits[self.num_mct_ancilla] == '0' and not np.array([int(bits[i]) for i in range(self.num_mct_ancilla+1, len(bits)-1)]).any():
                         val += np.real(sv[l]*sv[l].conjugate())
