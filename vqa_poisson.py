@@ -87,7 +87,7 @@ class VQAforPoisson():
 
         obj = self.evaluate(params)[0]
         self.current_objective = obj
-        print(obj)
+        # print(obj)
         return obj
 
     def evaluate(self, params):
