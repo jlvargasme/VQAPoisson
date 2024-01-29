@@ -13,6 +13,48 @@ from qiskit_aer.noise import (NoiseModel, QuantumError, ReadoutError,
 # VQA Poisson
 from vqa_poisson import VQAforPoisson
 
+def flatten_data(data, idx1, idx2):
+#     {'num_qubits': [4],
+#  'obj_count': [[0]],
+#  'circ_count': [[13929]],
+#  'iter_count': [[12]],
+#  'err': [[0.037063796835104246]],
+#  'params': [[array([ 6.28665136,  8.37627535,  7.10901932,  7.60296503,  3.90008654,
+#            6.61538734,  5.32156445, 10.62748741, 12.63063255,  5.2247018 ,
+#            9.40078149,  6.26734573,  7.79164364, 10.85577067,  1.69552512,
+#            1.07731749,  0.52354453, 10.20921883, 10.36886821, 11.51069319,
+#           12.29372414,  9.28338674,  5.00688598,  8.99931   ,  1.62426772,
+#            9.42014917,  2.08121638, 12.02612882,  6.36999465,  5.52023807,
+#            3.6062644 , 10.95440078,  5.33578101,  7.53382223])]],
+#  'q_sol': [[array([ 0.45301963,  1.12816198,  1.67777962,  1.97077209,  1.98335126,
+#            1.72506492,  1.15877648,  0.48055245, -0.4999037 , -1.17400566,
+#           -1.74469377, -2.03887965, -2.07370644, -1.80841628, -1.2765805 ,
+#           -0.52322544])]],
+#  'cl_sol': [array([ 0.49726763,  1.24230017,  1.73857501,  1.98658842,  1.98658842,
+#           1.73857501,  1.24230017,  0.49726763, -0.49726763, -1.24230017,
+#          -1.73857501, -1.98658842, -1.98658842, -1.73857501, -1.24230017,
+#          -0.49726763])]}
+    
+    num_qubits = data['num_qubits']
+    obj_count = data['obj_count'][idx1][idx2]
+    cir_count = data['circ_count'][idx1][idx2]
+    iter_count = data['iter_count'][idx1][idx2]
+    err = data['err'][idx1][idx2]
+    params = data['params'][idx1][idx2].tolist()
+    q_sol = data['q_sol'][idx1][idx2].tolist()
+    cl_sol = data['cl_sol'][idx1][idx2].tolist()
+
+    return {'num_qubits' : num_qubits,
+             'obj_count' : obj_count,
+             'cir_count' : cir_count,
+             'iter_count' : iter_count,
+             'err' : err,
+             'params' : params,
+             'q_sol' : q_sol,
+             'cl_sol' : cl_sol}
+
+
+
 def create_initial_state(N):
     x = np.linspace(0,1,N)
     y = np.cos(x)
@@ -85,47 +127,69 @@ def experiment(bc, num_trials, num_qubits_list, num_layers, qins, optimze=False,
     return data
 
 # run simulation parameterized by error
-pList = np.logspace(-5,1,1)
-# print(pList)
+# pList = np.logspace(-5,1,1)
+# # print(pList)
 
-# Open a file in write mode ('w')
-file_b = open('baseline_error.txt', 'w')
-file_o = open('optimized_error.txt', 'w')
+# # Open a file in write mode ('w')
+# file_b = open('baseline_error.txt', 'w')
+# file_o = open('optimized_error.txt', 'w')
 
-file_b.write("writing error results for baseline simulation\n")
-file_o.write("writing error results for optimized simulation\n")
+# file_b.write("writing error results for baseline simulation\n")
+# file_o.write("writing error results for optimized simulation\n")
 
-# create noise model parameterized by pError
-for pError in pList:
-    print(f"Simulating for pError: {pError:f}")
-    noise_model = NoiseModel()
-    # pError = 0.0007
-    error1q = depolarizing_error(pError, 1)
-    error2q = depolarizing_error(pError, 2)
+# # create noise model parameterized by pError
+# for pError in pList:
+#     print(f"Simulating for pError: {pError:f}")
+#     noise_model = NoiseModel()
+#     # pError = 0.0007
+#     error1q = depolarizing_error(pError, 1)
+#     error2q = depolarizing_error(pError, 2)
 
-    noise_model.add_all_qubit_quantum_error(error1q, ['id', 'rz', 'sx', 'u1', 'u2', 'u3'])
-    noise_model.add_all_qubit_quantum_error(error2q, ['cx'])
-    # print(noise_model)
+#     noise_model.add_all_qubit_quantum_error(error1q, ['id', 'rz', 'sx', 'u1', 'u2', 'u3'])
+#     noise_model.add_all_qubit_quantum_error(error2q, ['cx'])
+#     # print(noise_model)
 
-    t0 = time.time()
-    # optimizer = 'spsa'
-    num_layers = 5
-    num_trials = 1
-    num_qubits_list = [4]
-    optimize_shift=True
-    # create instance with noise here
-    qins = QuantumInstance(Aer.get_backend('statevector_simulator'), seed_transpiler=42, noise_model=noise_model)
+#     t0 = time.time()
+#     # optimizer = 'spsa'
+#     num_layers = 5
+#     num_trials = 1
+#     num_qubits_list = [4]
+#     optimize_shift=True
+#     # create instance with noise here
+#     qins = QuantumInstance(Aer.get_backend('statevector_simulator'), seed_transpiler=42, noise_model=noise_model)
 
-    # linear shift circuit
-    data_optimized = experiment('Periodic', num_trials, num_qubits_list, num_layers, qins, optimze=optimize_shift, method="powell")
+#     # linear shift circuit
+#     data_optimized = experiment('Periodic', num_trials, num_qubits_list, num_layers, qins, optimze=optimize_shift, method="powell")
 
-    # baseline
-    data_baseline = experiment('Periodic', num_trials, num_qubits_list, num_layers, qins, optimze=False, method="powell")
+#     # baseline
+#     data_baseline = experiment('Periodic', num_trials, num_qubits_list, num_layers, qins, optimze=False, method="powell")
 
-    # Write content to the file
-    file_b.write(f"{pError:f}, {data_baseline['err'][0][0]:f}\n")
-    file_o.write(f"{pError:f}, {data_optimized['err'][0][0]:f}\n")
+#     # Write content to the file
+#     file_b.write(f"{pError:f}, {data_baseline['err'][0][0]:f}\n")
+#     file_o.write(f"{pError:f}, {data_optimized['err'][0][0]:f}\n")
 
-# Close the file manually
-file_b.close()
-file_o.close()
+# # Close the file manually
+# file_b.close()
+# file_o.close()
+
+
+t0 = time.time()
+# optimizer = 'spsa'
+num_layers = 5
+num_trials = 1
+num_qubits_list = [10]
+optimize_shift=True
+# create instance with noise here
+qins = QuantumInstance(Aer.get_backend('statevector_simulator'), seed_transpiler=42)
+# linear shift circuit
+data_optimized = experiment('Periodic', num_trials, num_qubits_list, num_layers, qins, optimze=optimize_shift, method="powell")
+# baseline
+data_baseline = experiment('Periodic', num_trials, num_qubits_list, num_layers, qins, optimze=False, method="powell")
+
+import json
+
+with open('baseline_10qubit.txt', 'w') as convert_file: 
+     convert_file.write(json.dumps(flatten_data(data_baseline,0,0)))
+
+with open('optimized_10qubit.txt', 'w') as convert_file: 
+     convert_file.write(json.dumps(flatten_data(data_optimized,0,0)))
