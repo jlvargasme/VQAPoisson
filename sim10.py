@@ -126,50 +126,23 @@ def experiment(bc, num_trials, num_qubits_list, num_layers, qins, optimze=False,
         
     return data
 
-# run simulation parameterized by error
-pList = np.logspace(-5,1,15)
-# print(pList)
+t0 = time.time()
+# optimizer = 'spsa'
+num_layers = 5
+num_trials = 1
+num_qubits_list = [10]
+optimize_shift=True
+# create instance with noise here
+qins = QuantumInstance(Aer.get_backend('statevector_simulator'), seed_transpiler=42)
+# linear shift circuit
+data_optimized = experiment('Periodic', num_trials, num_qubits_list, num_layers, qins, optimze=optimize_shift, method="powell")
+# baseline
+data_baseline = experiment('Periodic', num_trials, num_qubits_list, num_layers, qins, optimze=False, method="powell")
 
-# Open a file in write mode ('w')
-file_b = open('baseline_error.txt', 'w')
-file_o = open('optimized_error.txt', 'w')
+import json
 
-file_b.write("writing error results for baseline simulation\n")
-file_o.write("writing error results for optimized simulation\n")
+with open('baseline_10qubit.txt', 'w') as convert_file: 
+     convert_file.write(json.dumps(flatten_data(data_baseline,0,0)))
 
-# create noise model parameterized by pError
-for pError in pList:
-    print(f"Simulating for pError: {pError:f}")
-    noise_model = NoiseModel()
-    # pError = 0.0007
-    error1q = depolarizing_error(pError, 1)
-    error2q = depolarizing_error(pError, 2)
-
-    noise_model.add_all_qubit_quantum_error(error1q, ['id', 'rz', 'sx', 'u1', 'u2', 'u3'])
-    noise_model.add_all_qubit_quantum_error(error2q, ['cx'])
-    # print(noise_model)
-
-    t0 = time.time()
-    # optimizer = 'spsa'
-    num_layers = 5
-    num_trials = 1
-    num_qubits_list = [4]
-    optimize_shift=True
-    # create instance with noise here
-    qins = QuantumInstance(Aer.get_backend('statevector_simulator'), seed_transpiler=42, noise_model=noise_model)
-
-    # linear shift circuit
-    data_optimized = experiment('Periodic', num_trials, num_qubits_list, num_layers, qins, optimze=optimize_shift, method="powell")
-
-    # baseline
-    data_baseline = experiment('Periodic', num_trials, num_qubits_list, num_layers, qins, optimze=False, method="powell")
-
-    # Write content to the file
-    file_b.write(f"{pError:f}, {data_baseline['err'][0][0]:f}\n")
-    file_o.write(f"{pError:f}, {data_optimized['err'][0][0]:f}\n")
-
-# Close the file manually
-file_b.close()
-file_o.close()
-
-
+with open('optimized_10qubit.txt', 'w') as convert_file: 
+     convert_file.write(json.dumps(flatten_data(data_optimized,0,0)))
