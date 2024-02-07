@@ -164,7 +164,7 @@ for seed in seed_random:
         backend = Aer.get_backend('qasm_simulator')
         num_shots=10000
         # create instance with noise here
-        qins = QuantumInstance(backend, seed_transpiler=42, noise_model=noise_model, shots=num_shots)
+        qins = QuantumInstance(backend, seed_transpiler=seed, noise_model=noise_model, shots=num_shots)
 
         # linear shift circuit
         data_optimized = experiment('Periodic', num_trials, num_qubits_list, num_layers, qins, optimze=optimize_shift, method="powell")
