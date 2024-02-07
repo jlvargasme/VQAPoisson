@@ -566,7 +566,8 @@ class VQAforPoisson():
         return A
 
     def get_f_vec(self):
-        return execute(self.qc_f_vec, Aer.get_backend('statevector_simulator')).result().get_statevector()
+        backend = Aer.get_backend('statevector_simulator')
+        return execute(self.qc_f_vec, backend).result().get_statevector()
 
     def get_cl_sol(self):
         return np.linalg.inv(self.get_A_matrix()) @ np.array(self.get_f_vec())
@@ -647,7 +648,9 @@ class VQAforPoisson():
         qc = QuantumCircuit(self.qreg)
         qc = self.ansatz(qc, x)
 
-        return execute(qc, Aer.get_backend('statevector_simulator')).result().get_statevector()
+        backend = Aer.get_backend('statevector_simulator')
+
+        return execute(qc, backend).result().get_statevector()
 
     def print_matrix(self, x):
         qc = QuantumCircuit(self.qreg)

@@ -42,7 +42,7 @@ def flatten_data(data, idx1, idx2):
     err = data['err'][idx1][idx2]
     params = data['params'][idx1][idx2].tolist()
     q_sol = data['q_sol'][idx1][idx2].tolist()
-    cl_sol = data['cl_sol'][idx1][idx2].tolist()
+    cl_sol = data['cl_sol'][idx1].tolist()
 
     return {'num_qubits' : num_qubits,
              'obj_count' : obj_count,
@@ -130,10 +130,12 @@ t0 = time.time()
 # optimizer = 'spsa'
 num_layers = 5
 num_trials = 1
-num_qubits_list = [10]
+num_qubits_list = [4]
 optimize_shift=True
 # create instance with noise here
-qins = QuantumInstance(Aer.get_backend('statevector_simulator'), seed_transpiler=42)
+backend=Aer.get_backend('qasm_simulator')
+num_shots=10000
+qins = QuantumInstance(backend, seed_transpiler=42, shots=num_shots)
 # linear shift circuit
 data_optimized = experiment('Periodic', num_trials, num_qubits_list, num_layers, qins, optimze=optimize_shift, method="powell")
 # baseline
@@ -141,8 +143,8 @@ data_baseline = experiment('Periodic', num_trials, num_qubits_list, num_layers, 
 
 import json
 
-with open('baseline_10qubit.txt', 'w') as convert_file: 
+with open('baseline_4qubit_qasm.txt', 'w') as convert_file: 
      convert_file.write(json.dumps(flatten_data(data_baseline,0,0)))
 
-with open('optimized_10qubit.txt', 'w') as convert_file: 
+with open('optimized_4qubit_qasm.txt', 'w') as convert_file: 
      convert_file.write(json.dumps(flatten_data(data_optimized,0,0)))
