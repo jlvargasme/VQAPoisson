@@ -128,7 +128,7 @@ def experiment(bc, num_trials, num_qubits_list, num_layers, qins, optimze=False,
     return data
 
 # run simulation parameterized by error
-pList = np.logspace(-5,1,15)
+pList = np.logspace(-5,0,15)
 # print(pList)
 
 # Open a file in write mode ('w')
@@ -141,6 +141,7 @@ file_o.write("writing error results for optimized simulation\n")
 seed_random = [42] + [random.randint(1, 100) for _ in range(5)]
 
 for seed in seed_random:
+    print(seed)
     file_b.write(f"Seed: {seed:f}\n")
     file_o.write(f"Seed: {seed:f}\n")
     # create noise model parameterized by pError
@@ -162,7 +163,7 @@ for seed in seed_random:
         num_qubits_list = [4]
         optimize_shift=True
         backend = Aer.get_backend('qasm_simulator')
-        num_shots=10000
+        num_shots=1
         # create instance with noise here
         qins = QuantumInstance(backend, seed_transpiler=seed, noise_model=noise_model, shots=num_shots)
 
@@ -171,7 +172,7 @@ for seed in seed_random:
 
         # baseline
         data_baseline = experiment('Periodic', num_trials, num_qubits_list, num_layers, qins, optimze=False, method="powell")
-
+        print(f"Seed: {seed}, pError: {pError:f}, solError_b: {data_baseline['err'][0][0]:f}, solError_o: {data_optimized['err'][0][0]:f}")
         # Write content to the file
         file_b.write(f"{pError:f}, {data_baseline['err'][0][0]:f}\n")
         file_o.write(f"{pError:f}, {data_optimized['err'][0][0]:f}\n")
