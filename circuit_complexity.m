@@ -14,7 +14,7 @@ sinc = [1 2 23 61 193 374 806 1590 3458 7268];
 
 figure()
 hold on
-
+% set(gca, 'FontSize',14)
 % Plot the fitted line
 plot(N, inc,'LineWidth',2);
 plot(N_fit, inc_fit, 'r-', 'DisplayName', 'Fitted Line');
